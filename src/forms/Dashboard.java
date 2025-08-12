@@ -184,11 +184,12 @@ public class Dashboard extends javax.swing.JFrame {
     }//GEN-LAST:event_btnRegisterUser2ActionPerformed
 
     private void btnDeleteUserActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnDeleteUserActionPerformed
-        // TODO add your handling code here:
+        
+        BDUtility.openForm(DeleteUser.class.getSimpleName(), new DeleteUser());
     }//GEN-LAST:event_btnDeleteUserActionPerformed
 
     private void btnGenerateQrActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnGenerateQrActionPerformed
-        // TODO add your handling code here:
+        BDUtility.openForm(GenerateQr.class.getSimpleName(), new GenerateQr());
     }//GEN-LAST:event_btnGenerateQrActionPerformed
 
     private void btnViewQrsActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnViewQrsActionPerformed
