@@ -193,11 +193,11 @@ public class Dashboard extends javax.swing.JFrame {
     }//GEN-LAST:event_btnGenerateQrActionPerformed
 
     private void btnViewQrsActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnViewQrsActionPerformed
-        // TODO add your handling code here:
+        BDUtility.openForm(ViewQrs.class.getSimpleName(), new ViewQrs());
     }//GEN-LAST:event_btnViewQrsActionPerformed
 
     private void btnMarkAttendanceActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnMarkAttendanceActionPerformed
-        // TODO add your handling code here:
+       BDUtility.openForm(MarkAttendance.class.getSimpleName(), new MarkAttendance());
     }//GEN-LAST:event_btnMarkAttendanceActionPerformed
 
     private void btnViewAttendanceActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnViewAttendanceActionPerformed
