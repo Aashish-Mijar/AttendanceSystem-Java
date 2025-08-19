@@ -48,7 +48,9 @@ import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
 import javax.swing.Timer;
+//import javax.xml.transform.Source;
 import utility.BDUtility;
 
 /**
@@ -198,11 +200,11 @@ public class MarkAttendance extends javax.swing.JFrame implements Runnable, Thre
     private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton1ActionPerformed
         running = false;
         stopWebcam();
-        
-        if(executor!=null && !executor.isShutdown()){
+
+        if (executor != null && !executor.isShutdown()) {
             executor.shutdown();
         }
-        
+
         this.dispose();
     }//GEN-LAST:event_jButton1ActionPerformed
 
@@ -263,7 +265,7 @@ public class MarkAttendance extends javax.swing.JFrame implements Runnable, Thre
                 }
 
                 BufferedImageLuminanceSource LuminanceSource = new BufferedImageLuminanceSource(image);
-                BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(source));
+                BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(LuminanceSource));
 
                 try {
                     result = new MultiFormatReader().decode(bitmap);
@@ -293,55 +295,90 @@ public class MarkAttendance extends javax.swing.JFrame implements Runnable, Thre
     private BufferedImage imagee = null;
 
     private void CirculatImageFrame(String finalPath) {
-        try {
-            Connection con = ConnectionProvider.getCon();
-            Statement st = con.createStatement();
-            ResultSet rs = st.executeQuery("select * from userdetails where email = '" + resultMap.get("email") + "';");
-            if (!rs.next()) {
-                showPopUpForCertainDuration("User is not Registered or Deleted", "Invalid QR", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
+        if (resultMap == null || resultMap.get("email") == null || resultMap.get("name") == null) {
+            showPopUpForCertainDuration("Invalid QR code data", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
 
-            imagee = null;
-            String imagePath = null;
-            File imageFile = new File(imagePath);
-            if (imageFile.exists()) {
-                try {
-                    imagee = ImageIO.read(new File(imagePath));
-                    imagee = createCircularImage(imagee);
-                    ImageIcon icon = new ImageIcon(imagee);
-                    lblImage.setIcon(icon);
-                } catch (Exception ex) {
-                    ex.printStackTrace();
+        try (Connection con = ConnectionProvider.getCon(); PreparedStatement st = con.prepareStatement(
+                "SELECT * FROM userdetails WHERE email = ?")) {
+
+            // Set parameter to prevent SQL injection
+            st.setString(1, resultMap.get("email"));
+
+            try (ResultSet rs = st.executeQuery()) {
+                if (!rs.next()) {
+                    showPopUpForCertainDuration("User is not Registered or Deleted",
+                            "Invalid QR", JOptionPane.ERROR_MESSAGE);
+                    return;
                 }
-            } else {
-                BufferedImage imageee = new BufferedImage(300, 300, BufferedImage.TYPE_INT_ARGB);
-                Graphics2D g2d = imageee.createGraphics();
 
-                g2d.setColor(Color.BLACK);
-                g2d.fillOval(25, 25, 250, 250);
-                g2d.setFont(new Font("Serif", Font.BOLD, 250));
-                g2d.setColor(Color.WHITE);
-                g2d.drawString(String.valueOf(resultMap.get("name").charAt(0)).toUpperCase(), 75, 255);
-                g2d.dispose();
+                // Initialize imagePath with the finalPath parameter
+                String imagePath = finalPath;
+                File imageFile = new File(imagePath);
 
-                ImageIcon imageIconn = new ImageIcon(imageee);
-                lblImage.setIcon(imageIconn);
-                this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-                this.pack();
-                this.setLocationRelativeTo(null);
-                this.setVisible(true);
+                if (imageFile.exists()) {
+                    try {
+                        imagee = ImageIO.read(imageFile);
+                        imagee = createCircularImage(imagee);
+                        ImageIcon icon = new ImageIcon(imagee);
+                        lblImage.setIcon(icon);
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                        createDefaultAvatar(resultMap.get("name"));
+                    }
+                } else {
+                    createDefaultAvatar(resultMap.get("name"));
+                }
+
+                // Update UI on the Event Dispatch Thread
+                SwingUtilities.invokeLater(() -> {
+                    lblName.setHorizontalAlignment(JLabel.CENTER);
+                    lblName.setText(resultMap.get("name"));
+
+                    try {
+                        if (!checkInCheckOut()) {
+                            return;
+                        }
+                    } catch (HeadlessException ex) {
+                        System.getLogger(MarkAttendance.class.getName()).log(System.Logger.Level.ERROR, (String) null, ex);
+                    } catch (SQLException ex) {
+                        System.getLogger(MarkAttendance.class.getName()).log(System.Logger.Level.ERROR, (String) null, ex);
+                    }
+                });
+
             }
-
-            lblName.setHorizontalAlignment(JLabel.CENTER);
-            lblName.setText(resultMap.get("name"));
-            if (!checkInCheckOUt()) {
-                return;
-            }
-
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            showPopUpForCertainDuration("Database error: " + ex.getMessage(),
+                    "Error", JOptionPane.ERROR_MESSAGE);
         } catch (Exception ex) {
             ex.printStackTrace();
+            showPopUpForCertainDuration("Error processing image: " + ex.getMessage(),
+                    "Error", JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    private void createDefaultAvatar(String name) {
+        BufferedImage image = new BufferedImage(300, 300, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2d = image.createGraphics();
+
+        try {
+            g2d.setColor(Color.BLACK);
+            g2d.fillOval(25, 25, 250, 250);
+            g2d.setFont(new Font("Serif", Font.BOLD, 250));
+            g2d.setColor(Color.WHITE);
+
+            if (name != null && !name.isEmpty()) {
+                g2d.drawString(String.valueOf(name.charAt(0)).toUpperCase(), 75, 255);
+            }
+
+            ImageIcon icon = new ImageIcon(image);
+            lblImage.setIcon(icon);
+        } finally {
+            g2d.dispose();
+        }
+
     }
 
     @Override
@@ -363,25 +400,24 @@ public class MarkAttendance extends javax.swing.JFrame implements Runnable, Thre
         Timer timer = new Timer(5000, new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-               dialog.dispose();
-               clearUserDetails();
+                dialog.dispose();
+                clearUserDetails();
             }
 
             private void clearUserDetails() {
-               lblCheckInCheckOut.setText("");
-               lblCheckInCheckOut.setBackground(null);
-               lblCheckInCheckOut.setForeground(null);
-               lblCheckInCheckOut.setOpaque(false);
-               lblName.setText("");
-               lblImage.setIcon(null);
+                lblCheckInCheckOut.setText("");
+                lblCheckInCheckOut.setBackground(null);
+                lblCheckInCheckOut.setForeground(null);
+                lblCheckInCheckOut.setOpaque(false);
+                lblName.setText("");
+                lblImage.setIcon(null);
             }
         });
 
         timer.setRepeats(false);
         timer.start();
         dialog.setVisible(true);
-        
-        
+
     }
 
     private BufferedImage createCircularImage(BufferedImage imagee) {
@@ -390,18 +426,18 @@ public class MarkAttendance extends javax.swing.JFrame implements Runnable, Thre
         BufferedImage resizedImage = new BufferedImage(diameter, diameter, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2 = resizedImage.createGraphics();
         g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g2.drawImage(image, 0,0,diameter,diameter, null);
+        g2.drawImage(image, 0, 0, diameter, diameter, null);
         g2.dispose();
         BufferedImage circularImage = new BufferedImage(diameter, diameter, BufferedImage.TYPE_INT_ARGB);
         g2 = circularImage.createGraphics();
-        Ellipse2D.Double circle = new Ellipse2D.Double(0,0,diameter,diameter);
+        Ellipse2D.Double circle = new Ellipse2D.Double(0, 0, diameter, diameter);
         g2.setClip(circle);
         g2.drawImage(resizedImage, 0, 0, null);
         g2.dispose();
         return circularImage;
     }
 
-    private boolean checkInCheckOUt() throws HeadlessException, SQLException {
+    private boolean checkInCheckOut() throws HeadlessException, SQLException {
         String popUpHeader = null;
         String popUpMessage = null;
         Color color = null;
@@ -435,8 +471,8 @@ public class MarkAttendance extends javax.swing.JFrame implements Runnable, Thre
             long minutes = duration.minusHours(hours).toMinutes();
             long seconds = duration.minusHours(hours).minusMinutes(minutes).getSeconds();
 
-            if (!(hours > 0 || (hours == 0 && minutes >= 5))) {
-                long remainingMinutes = 4 - minutes;
+            if (!(hours > 0 || (hours == 0 && minutes >= 3))) {
+                long remainingMinutes = 3 - minutes;
                 long remainingSeconds = 60 - seconds;
 
                 popUpMessage = String.format("Your work duration is less than 5 minutes\nYou can check out after: %d minutes and %d seconds", remainingMinutes, remainingSeconds);
@@ -476,15 +512,16 @@ public class MarkAttendance extends javax.swing.JFrame implements Runnable, Thre
         showPopUpForCertainDuration(popUpMessage, popUpHeader, JOptionPane.INFORMATION_MESSAGE);
         return true;
     }
-    
+
     @Override
-    public void paint(Graphics g){
+    public void paint(Graphics g) {
         super.paint(g);
-        if(imagee!=null){
-            g.drawImage(imagee, 0,0,null);
-            
+        if (imagee != null) {
+            g.drawImage(imagee, 0, 0, null);
+
         }
     }
+
     private static class WebCamPanel {
 
         public WebCamPanel() {

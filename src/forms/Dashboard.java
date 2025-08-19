@@ -201,7 +201,7 @@ public class Dashboard extends javax.swing.JFrame {
     }//GEN-LAST:event_btnMarkAttendanceActionPerformed
 
     private void btnViewAttendanceActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnViewAttendanceActionPerformed
-        // TODO add your handling code here:
+       BDUtility.openForm(ViewAttendance.class.getSimpleName(), new ViewAttendance());
     }//GEN-LAST:event_btnViewAttendanceActionPerformed
 
     /**
